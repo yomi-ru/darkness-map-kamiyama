@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Darkness Checker</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="brand">
+                <p class="label">Route Safety Map</p>
+                <h1>暗さレベル判定</h1>
+                <p class="lead">
+                    出発地点から到着地点までのルート上にある危険情報をもとに、
+                    最大の暗さレベルを表示します。
+                </p>
+            </div>
+
+            <div class="form-card">
+                <h2>ルート指定</h2>
+
+                <div class="pin-actions">
+                    <button type="button" id="selectStartButton" class="sub-button">
+                        出発地点を地図で選ぶ
+                    </button>
+                
+                    <button type="button" id="selectEndButton" class="sub-button">
+                        到着地点を地図で選ぶ
+                    </button>
+                </div>
+                
+                <p id="selectModeText" class="select-mode-text">
+                    地図上で地点を指定できます。
+                </p>
+
+                <div class="selected-points">
+                    <p>出発地点：<span id="startPointText">未選択</span></p>
+                    <p>到着地点：<span id="endPointText">未選択</span></p>
+                </div>
+                
+                <input id="startLat" type="hidden" value="33.968492">
+                <input id="startLng" type="hidden" value="134.350816">
+                <input id="endLat" type="hidden" value="33.978429">
+                <input id="endLng" type="hidden" value="134.374837">
+
+                <label>
+                    ルートから何m以内を判定対象にするか
+                    <input id="threshold" type="number" value="10" min="10" max="500">
+                </label>
+
+                <button id="searchButton">ルートを判定する</button>
+            </div>
+
+            <div id="resultCard" class="result-card">
+                <p class="result-label">判定結果</p>
+                <h2 id="maxLevelText">未判定</h2>
+                <p id="resultDetail">
+                    ルートを指定すると、最大暗さレベルが表示されます。
+                </p>
+            </div>
+
+            <div class="legend">
+                <h2>暗さレベル</h2>
+                <div><span class="dot level-1"></span> レベル1：やや暗い</div>
+                <div><span class="dot level-2"></span> レベル2：暗い</div>
+                <div><span class="dot level-3"></span> レベル3：かなり暗い</div>
+            </div>
+        </aside>
+
+        <main class="map-area">
+            <div id="map"></div>
+        </main>
+    </div>
+
+    <script src="./script.js"></script>
+
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACVZEexGrwrlb6vST6eoNkWXX67SOuqxo&callback=initMap&loading=async"
+        async
+        defer>
+    </script>
+</body>
+
+</html>
