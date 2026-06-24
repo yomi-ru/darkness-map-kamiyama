@@ -339,8 +339,8 @@ async function loadDangerPointsFromSheet() {
     if (
         !APP_CONFIG.apiKey ||
         !APP_CONFIG.spreadsheetId ||
-        APP_CONFIG.apiKey === "AIzaSyACVZEexGrwrlb6vST6eoNkWXX67SOuqxo" ||
-        APP_CONFIG.spreadsheetId === "1j01JZMtfaZsMtGoWyJsSFUD4Aw-SkZzEXUU--GSiOqM"
+        APP_CONFIG.apiKey === "YOUR_API_KEY" ||
+        APP_CONFIG.spreadsheetId === "YOUR_SPREADSHEET_ID"
     ) {
         sheetStatus.textContent = "APIキーまたはスプレッドシートIDを設定してください。";
         return;
