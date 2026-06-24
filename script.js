@@ -265,7 +265,7 @@ async function submitDangerInfo() {
         return;
     }
 
-    if (!APP_CONFIG.submitUrl || APP_CONFIG.submitUrl === "https://script.google.com/macros/s/AKfycbw2FRenC1H96cMGRfwXV44Ilz9w3ZZi4RmMjwohNPNjMYP1SanbDrIU4A12fzqLUe_n/exec") {
+    if (!APP_CONFIG.submitUrl || APP_CONFIG.submitUrl === "YOUR_APPS_SCRIPT_WEB_APP_URL") {
         submitStatus.textContent = "Apps ScriptのWebアプリURLが設定されていません。";
         return;
     }
