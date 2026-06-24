@@ -15,8 +15,8 @@
                 <p class="label">Route Safety Map</p>
                 <h1>暗さレベル判定</h1>
                 <p class="lead">
-                    出発地点から到着地点までのルート上にある危険情報をもとに、
-                    最大の暗さレベルを表示します。
+                    Googleスプレッドシートの危険情報をもとに、
+                    出発地点から到着地点までの安全寄りルートを提案します。
                 </p>
             </div>
 
@@ -27,12 +27,12 @@
                     <button type="button" id="selectStartButton" class="sub-button">
                         出発地点を地図で選ぶ
                     </button>
-                
+
                     <button type="button" id="selectEndButton" class="sub-button">
                         到着地点を地図で選ぶ
                     </button>
                 </div>
-                
+
                 <p id="selectModeText" class="select-mode-text">
                     地図上で地点を指定できます。
                 </p>
@@ -41,25 +41,35 @@
                     <p>出発地点：<span id="startPointText">未選択</span></p>
                     <p>到着地点：<span id="endPointText">未選択</span></p>
                 </div>
-                
-                <input id="startLat" type="hidden" value="33.968492">
-                <input id="startLng" type="hidden" value="134.350816">
-                <input id="endLat" type="hidden" value="33.978429">
-                <input id="endLng" type="hidden" value="134.374837">
+
+                <input id="startLat" type="hidden" value="">
+                <input id="startLng" type="hidden" value="">
+                <input id="endLat" type="hidden" value="">
+                <input id="endLng" type="hidden" value="">
 
                 <label>
-                    ルートから何m以内を判定対象にするか
-                    <input id="threshold" type="number" value="10" min="10" max="500">
+                    ルートから何m以内を危険情報として扱うか
+                    <input id="threshold" type="number" value="60" min="10" max="500">
                 </label>
 
-                <button id="searchButton">ルートを判定する</button>
+                <button type="button" id="searchButton">
+                    ルートを判定する
+                </button>
             </div>
 
             <div id="resultCard" class="result-card">
                 <p class="result-label">判定結果</p>
                 <h2 id="maxLevelText">未判定</h2>
                 <p id="resultDetail">
-                    ルートを指定すると、最大暗さレベルが表示されます。
+                    出発地点と到着地点を指定すると、推奨ルートを表示します。
+                </p>
+            </div>
+
+            <div class="sheet-card">
+                <h2>Sheets連携</h2>
+                <p id="sheetStatus">危険情報を読み込み中です。</p>
+                <p class="sheet-note">
+                    C列: 緯度 / D列: 経度 / E列: 暗さレベル を2行目以降から読み込みます。
                 </p>
             </div>
 
@@ -75,6 +85,15 @@
             <div id="map"></div>
         </main>
     </div>
+
+    <script>
+        const SHEET_CONFIG = {
+            apiKey: "AIzaSyACVZEexGrwrlb6vST6eoNkWXX67SOuqxo",
+            spreadsheetId: "1j01JZMtfaZsMtGoWyJsSFUD4Aw-SkZzEXUU--GSiOqM",
+            sheetName: "シート1",
+            range: "C2:E"
+        };
+    </script>
 
     <script src="./script.js"></script>
 
