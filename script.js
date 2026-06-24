@@ -2,12 +2,18 @@ let map;
 let directionsService;
 let directionsRenderer;
 
-let dangerMarkers = [];
+let selectMode = null;
+let addDangerMode = false;
+
 let startMarker = null;
 let endMarker = null;
-let selectMode = null;
+let pendingDangerMarker = null;
 
+let selectedDangerPosition = null;
+
+let dangerMarkers = [];
 let DANGER_POINTS = [];
+
 let sheetsPollingTimer = null;
 let hasCalculatedRoute = false;
 
@@ -42,27 +48,34 @@ window.initMap = function () {
 };
 
 function setupEvents() {
-    document
-        .getElementById("searchButton")
-        .addEventListener("click", calculateRoute);
+    document.getElementById("selectStartButton").addEventListener("click", () => {
+        setSelectMode("start");
+    });
 
-    document
-        .getElementById("selectStartButton")
-        .addEventListener("click", () => setSelectMode("start"));
+    document.getElementById("selectEndButton").addEventListener("click", () => {
+        setSelectMode("end");
+    });
 
-    document
-        .getElementById("selectEndButton")
-        .addEventListener("click", () => setSelectMode("end"));
+    document.getElementById("searchButton").addEventListener("click", calculateRoute);
+
+    document.getElementById("addDangerButton").addEventListener("click", startAddDangerMode);
+    document.getElementById("submitDangerButton").addEventListener("click", submitDangerInfo);
+    document.getElementById("cancelDangerButton").addEventListener("click", cancelAddDangerMode);
 
     map.addListener("click", event => {
-        if (!selectMode) {
-            return;
-        }
-
         const position = {
             lat: event.latLng.lat(),
             lng: event.latLng.lng()
         };
+
+        if (addDangerMode) {
+            setDangerInputPosition(position);
+            return;
+        }
+
+        if (!selectMode) {
+            return;
+        }
 
         if (selectMode === "start") {
             setStartPoint(position);
@@ -78,38 +91,37 @@ function setupEvents() {
 
 function setSelectMode(mode) {
     selectMode = mode;
+    addDangerMode = false;
 
-    const startButton = document.getElementById("selectStartButton");
-    const endButton = document.getElementById("selectEndButton");
-    const selectModeText = document.getElementById("selectModeText");
+    document.getElementById("selectStartButton").classList.remove("active");
+    document.getElementById("selectEndButton").classList.remove("active");
+    document.getElementById("addDangerButton").classList.remove("active");
 
-    startButton.classList.remove("active");
-    endButton.classList.remove("active");
+    const routeModeText = document.getElementById("routeModeText");
 
     if (mode === "start") {
-        startButton.classList.add("active");
-        selectModeText.textContent = "地図上をクリックして、出発地点を指定してください。";
+        document.getElementById("selectStartButton").classList.add("active");
+        routeModeText.textContent = "地図上をクリックして、出発地点を指定してください。";
         map.setOptions({ draggableCursor: "crosshair" });
         return;
     }
 
     if (mode === "end") {
-        endButton.classList.add("active");
-        selectModeText.textContent = "地図上をクリックして、到着地点を指定してください。";
+        document.getElementById("selectEndButton").classList.add("active");
+        routeModeText.textContent = "地図上をクリックして、到着地点を指定してください。";
         map.setOptions({ draggableCursor: "crosshair" });
         return;
     }
 
-    selectModeText.textContent = "地図上で地点を指定できます。";
+    routeModeText.textContent = "地図上で出発地点と到着地点を指定できます。";
     map.setOptions({ draggableCursor: null });
 }
 
 function setStartPoint(position) {
     document.getElementById("startLat").value = position.lat.toFixed(6);
     document.getElementById("startLng").value = position.lng.toFixed(6);
-
-    const startPointText = document.getElementById("startPointText");
-    startPointText.textContent = `${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`;
+    document.getElementById("startPointText").textContent =
+        `${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`;
 
     if (!startMarker) {
         startMarker = new google.maps.Marker({
@@ -125,12 +137,10 @@ function setStartPoint(position) {
         });
 
         startMarker.addListener("dragend", event => {
-            const draggedPosition = {
+            setStartPoint({
                 lat: event.latLng.lat(),
                 lng: event.latLng.lng()
-            };
-
-            setStartPoint(draggedPosition);
+            });
         });
 
         return;
@@ -142,9 +152,8 @@ function setStartPoint(position) {
 function setEndPoint(position) {
     document.getElementById("endLat").value = position.lat.toFixed(6);
     document.getElementById("endLng").value = position.lng.toFixed(6);
-
-    const endPointText = document.getElementById("endPointText");
-    endPointText.textContent = `${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`;
+    document.getElementById("endPointText").textContent =
+        `${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`;
 
     if (!endMarker) {
         endMarker = new google.maps.Marker({
@@ -160,12 +169,10 @@ function setEndPoint(position) {
         });
 
         endMarker.addListener("dragend", event => {
-            const draggedPosition = {
+            setEndPoint({
                 lat: event.latLng.lat(),
                 lng: event.latLng.lng()
-            };
-
-            setEndPoint(draggedPosition);
+            });
         });
 
         return;
@@ -174,33 +181,181 @@ function setEndPoint(position) {
     endMarker.setPosition(position);
 }
 
+function startAddDangerMode() {
+    addDangerMode = true;
+    selectMode = null;
+    selectedDangerPosition = null;
+
+    document.getElementById("selectStartButton").classList.remove("active");
+    document.getElementById("selectEndButton").classList.remove("active");
+    document.getElementById("addDangerButton").classList.add("active");
+
+    document.getElementById("routeModeText").textContent =
+        "地図上で出発地点と到着地点を指定できます。";
+
+    document.getElementById("addModeText").textContent =
+        "地図上で、暗さ情報を登録したい場所をクリックしてください。";
+
+    document.getElementById("dangerForm").classList.add("hidden");
+    document.getElementById("submitStatus").textContent = "";
+
+    if (pendingDangerMarker) {
+        pendingDangerMarker.setMap(null);
+        pendingDangerMarker = null;
+    }
+
+    map.setOptions({ draggableCursor: "crosshair" });
+}
+
+function setDangerInputPosition(position) {
+    selectedDangerPosition = position;
+
+    document.getElementById("dangerLocationText").textContent =
+        `${position.lat.toFixed(6)}, ${position.lng.toFixed(6)}`;
+
+    document.getElementById("dangerForm").classList.remove("hidden");
+    document.getElementById("addModeText").textContent =
+        "場所を選択しました。内容を入力して登録してください。";
+
+    if (!pendingDangerMarker) {
+        pendingDangerMarker = new google.maps.Marker({
+            position,
+            map,
+            draggable: true,
+            label: {
+                text: "＋",
+                color: "#ffffff",
+                fontWeight: "700"
+            },
+            title: "追加予定の危険情報"
+        });
+
+        pendingDangerMarker.addListener("dragend", event => {
+            setDangerInputPosition({
+                lat: event.latLng.lat(),
+                lng: event.latLng.lng()
+            });
+        });
+
+        return;
+    }
+
+    pendingDangerMarker.setPosition(position);
+}
+
+async function submitDangerInfo() {
+    const submitStatus = document.getElementById("submitStatus");
+
+    if (!selectedDangerPosition) {
+        submitStatus.textContent = "地図上で場所を選択してください。";
+        return;
+    }
+
+    const placeName = document.getElementById("dangerPlaceName").value.trim();
+    const level = Number(document.getElementById("dangerLevel").value);
+    const note = document.getElementById("dangerNote").value.trim();
+
+    if (!placeName) {
+        submitStatus.textContent = "当該箇所名を入力してください。";
+        return;
+    }
+
+    if (![1, 2, 3].includes(level)) {
+        submitStatus.textContent = "暗さレベルを選択してください。";
+        return;
+    }
+
+    if (!APP_CONFIG.submitUrl || APP_CONFIG.submitUrl === "https://script.google.com/macros/s/AKfycbw2FRenC1H96cMGRfwXV44Ilz9w3ZZi4RmMjwohNPNjMYP1SanbDrIU4A12fzqLUe_n/exec") {
+        submitStatus.textContent = "Apps ScriptのWebアプリURLが設定されていません。";
+        return;
+    }
+
+    const payload = {
+        placeName,
+        lat: selectedDangerPosition.lat,
+        lng: selectedDangerPosition.lng,
+        level,
+        note
+    };
+
+    submitStatus.textContent = "登録中です。";
+
+    try {
+        await fetch(APP_CONFIG.submitUrl, {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        submitStatus.textContent = "登録しました。数秒以内に地図へ反映されます。";
+
+        clearDangerForm();
+        cancelAddDangerMode();
+
+        setTimeout(() => {
+            loadDangerPointsFromSheet();
+
+            if (hasCalculatedRoute) {
+                calculateRoute();
+            }
+        }, 1500);
+    } catch (error) {
+        console.error(error);
+        submitStatus.textContent = "登録に失敗しました。Apps ScriptのURLや公開設定を確認してください。";
+    }
+}
+
+function cancelAddDangerMode() {
+    addDangerMode = false;
+    selectedDangerPosition = null;
+
+    document.getElementById("addDangerButton").classList.remove("active");
+    document.getElementById("addModeText").textContent =
+        "ボタンを押してから、地図上の該当箇所をクリックしてください。";
+
+    document.getElementById("dangerForm").classList.add("hidden");
+
+    if (pendingDangerMarker) {
+        pendingDangerMarker.setMap(null);
+        pendingDangerMarker = null;
+    }
+
+    map.setOptions({ draggableCursor: null });
+}
+
+function clearDangerForm() {
+    document.getElementById("dangerPlaceName").value = "";
+    document.getElementById("dangerLevel").value = "1";
+    document.getElementById("dangerNote").value = "";
+    document.getElementById("dangerLocationText").textContent = "未選択";
+}
+
 async function loadDangerPointsFromSheet() {
     const sheetStatus = document.getElementById("sheetStatus");
 
-    if (!window.SHEET_CONFIG) {
-        sheetStatus.textContent = "SHEET_CONFIGが設定されていません。";
-        return;
-    }
-
-    const { apiKey, spreadsheetId, sheetName, range } = SHEET_CONFIG;
-
     if (
-        !apiKey ||
-        !spreadsheetId ||
-        apiKey === "YOUR_SHEETS_API_KEY" ||
-        spreadsheetId === "YOUR_SPREADSHEET_ID"
+        !APP_CONFIG.apiKey ||
+        !APP_CONFIG.spreadsheetId ||
+        APP_CONFIG.apiKey === "AIzaSyACVZEexGrwrlb6vST6eoNkWXX67SOuqxo" ||
+        APP_CONFIG.spreadsheetId === "1j01JZMtfaZsMtGoWyJsSFUD4Aw-SkZzEXUU--GSiOqM"
     ) {
-        sheetStatus.textContent = "Sheets APIキーまたはスプレッドシートIDを設定してください。";
+        sheetStatus.textContent = "APIキーまたはスプレッドシートIDを設定してください。";
         return;
     }
 
-    const encodedRange = encodeURIComponent(`${sheetName}!${range}`);
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}?key=${apiKey}`;
+    const encodedRange = encodeURIComponent(`${APP_CONFIG.sheetName}!${APP_CONFIG.readRange}`);
+    const url =
+        `https://sheets.googleapis.com/v4/spreadsheets/${APP_CONFIG.spreadsheetId}/values/${encodedRange}?key=${APP_CONFIG.apiKey}`;
 
     try {
         const response = await fetch(url);
 
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Sheets API error:", response.status, errorText);
             throw new Error(`Sheets API error: ${response.status}`);
         }
 
@@ -209,19 +364,24 @@ async function loadDangerPointsFromSheet() {
 
         const nextPoints = rows
             .map((row, index) => {
-                const lat = Number(row[0]);
-                const lng = Number(row[1]);
-                const level = Number(row[2]);
+                const placeName = String(row[0] || "").trim();
+                const lat = Number(row[1]);
+                const lng = Number(row[2]);
+                const level = Number(row[3]);
+                const note = String(row[4] || "").trim();
 
                 return {
+                    placeName,
                     lat,
                     lng,
                     level,
+                    note,
                     rowNumber: index + 2
                 };
             })
             .filter(point => {
                 return (
+                    point.placeName &&
                     Number.isFinite(point.lat) &&
                     Number.isFinite(point.lng) &&
                     Number.isFinite(point.level) &&
@@ -234,8 +394,7 @@ async function loadDangerPointsFromSheet() {
                 );
             });
 
-        const hasChanged =
-            JSON.stringify(nextPoints) !== JSON.stringify(DANGER_POINTS);
+        const hasChanged = JSON.stringify(nextPoints) !== JSON.stringify(DANGER_POINTS);
 
         if (!hasChanged) {
             sheetStatus.textContent = `危険情報 ${DANGER_POINTS.length}件を表示中です。`;
@@ -251,8 +410,9 @@ async function loadDangerPointsFromSheet() {
             calculateRoute();
         }
     } catch (error) {
-        console.error("Sheets APIから危険情報を取得できませんでした:", error);
-        sheetStatus.textContent = "Sheets APIから危険情報を取得できませんでした。共有設定やAPIキーを確認してください。";
+        console.error(error);
+        sheetStatus.textContent =
+            "Sheets APIから危険情報を取得できませんでした。共有設定、APIキー、シート名を確認してください。";
     }
 }
 
@@ -265,7 +425,7 @@ function startSheetsPolling() {
 
     sheetsPollingTimer = setInterval(() => {
         loadDangerPointsFromSheet();
-    }, 5000);
+    }, APP_CONFIG.pollingMs || 5000);
 }
 
 function drawDangerPoints() {
@@ -279,17 +439,18 @@ function drawDangerPoints() {
                 lng: point.lng
             },
             map,
-            title: `暗さレベル ${point.level}`,
+            title: `${point.placeName} / レベル${point.level}`,
             icon: createMarkerIcon(point.level)
         });
 
         const infoWindow = new google.maps.InfoWindow({
             content: `
-                <div style="font-size: 14px;">
-                    <strong>暗さレベル ${point.level}</strong><br>
-                    行番号: ${point.rowNumber}<br>
+                <div style="font-size: 14px; line-height: 1.7;">
+                    <strong>${escapeHtml(point.placeName)}</strong><br>
+                    暗さレベル: ${point.level}<br>
                     緯度: ${point.lat}<br>
-                    経度: ${point.lng}
+                    経度: ${point.lng}<br>
+                    備考: ${escapeHtml(point.note || "なし")}
                 </div>
             `
         });
@@ -330,7 +491,7 @@ function calculateRoute() {
         !isValidCoordinate(startLat, startLng) ||
         !isValidCoordinate(endLat, endLng)
     ) {
-        updateResult(null, [], "出発地点と到着地点を地図上で指定してください。");
+        updateResultMessage("判定できません", "出発地点と到着地点を地図上で指定してください。");
         return;
     }
 
@@ -349,7 +510,7 @@ function calculateRoute() {
 
     directionsService.route(request, (result, status) => {
         if (status !== "OK") {
-            updateResult(null, [], "ルートを取得できませんでした。地点を確認してください。");
+            updateResultMessage("判定できません", "ルートを取得できませんでした。地点を確認してください。");
             return;
         }
 
@@ -369,10 +530,7 @@ function calculateRoute() {
 
             const levels = pointsOnRoute.map(point => point.level);
 
-            const maxLevel = levels.length > 0
-                ? Math.max(...levels)
-                : 0;
-
+            const maxLevel = levels.length > 0 ? Math.max(...levels) : 0;
             const averageLevel = levels.length > 0
                 ? levels.reduce((sum, level) => sum + level, 0) / levels.length
                 : 0;
@@ -424,11 +582,9 @@ function calculateRoute() {
 function findDangerPointsNearRoute(routePath, dangerPoints, thresholdMeters) {
     return dangerPoints
         .map(point => {
-            const distance = getMinimumDistanceToRoute(point, routePath);
-
             return {
                 ...point,
-                distance
+                distance: getMinimumDistanceToRoute(point, routePath)
             };
         })
         .filter(point => point.distance <= thresholdMeters);
@@ -438,10 +594,11 @@ function getMinimumDistanceToRoute(point, routePath) {
     let minDistance = Infinity;
 
     for (let i = 0; i < routePath.length - 1; i++) {
-        const start = routePath[i];
-        const end = routePath[i + 1];
-
-        const distance = distancePointToSegmentMeters(point, start, end);
+        const distance = distancePointToSegmentMeters(
+            point,
+            routePath[i],
+            routePath[i + 1]
+        );
 
         if (distance < minDistance) {
             minDistance = distance;
@@ -488,43 +645,12 @@ function distancePointToSegmentMeters(point, segmentStart, segmentEnd) {
     return Math.hypot(px - closestX, py - closestY);
 }
 
-function updateResult(maxLevel, pointsOnRoute, customMessage = null) {
-    const resultCard = document.getElementById("resultCard");
-    const maxLevelText = document.getElementById("maxLevelText");
-    const resultDetail = document.getElementById("resultDetail");
-
-    resultCard.className = "result-card";
-
-    if (customMessage) {
-        maxLevelText.textContent = "判定できません";
-        resultDetail.textContent = customMessage;
-        return;
-    }
-
-    if (maxLevel === 0) {
-        resultCard.classList.add("result-safe");
-        maxLevelText.textContent = "危険ポイントなし";
-        resultDetail.textContent = "指定した範囲内では、ルート上に危険情報ポイントは見つかりませんでした。";
-        return;
-    }
-
-    resultCard.classList.add(`result-level-${maxLevel}`);
-    maxLevelText.textContent = `最大暗さレベル ${maxLevel}`;
-
-    const nearestText = pointsOnRoute
-        .sort((a, b) => b.level - a.level || a.distance - b.distance)
-        .map(point => `レベル${point.level} / 約${Math.round(point.distance)}m`)
-        .join("、");
-
-    resultDetail.textContent = `ルート付近で ${pointsOnRoute.length} 件の危険情報が見つかりました。対象: ${nearestText}`;
-}
-
 function updateResultWithRoute(bestRoute, routeCount) {
     const resultCard = document.getElementById("resultCard");
     const maxLevelText = document.getElementById("maxLevelText");
     const resultDetail = document.getElementById("resultDetail");
 
-    resultCard.className = "result-card";
+    resultCard.className = "card result-card";
 
     const maxLevel = bestRoute.maxLevel;
     const averageLevelText = bestRoute.averageLevel.toFixed(2);
@@ -544,11 +670,21 @@ function updateResultWithRoute(bestRoute, routeCount) {
 
     const pointText = bestRoute.pointsOnRoute
         .sort((a, b) => b.level - a.level || a.distance - b.distance)
-        .map(point => `レベル${point.level} / 約${Math.round(point.distance)}m`)
+        .map(point => `${point.placeName}: レベル${point.level} / 約${Math.round(point.distance)}m`)
         .join("、");
 
     resultDetail.textContent =
         `${routeCount}件の候補ルートから、最大暗さレベル、平均暗さレベル、危険情報件数、距離をもとに推奨ルートを選びました。平均暗さレベルは${averageLevelText}、危険情報は${dangerCount}件、距離は約${distanceKm}kmです。対象: ${pointText}`;
+}
+
+function updateResultMessage(title, detail) {
+    const resultCard = document.getElementById("resultCard");
+    const maxLevelText = document.getElementById("maxLevelText");
+    const resultDetail = document.getElementById("resultDetail");
+
+    resultCard.className = "card result-card";
+    maxLevelText.textContent = title;
+    resultDetail.textContent = detail;
 }
 
 function highlightDangerPoints(pointsOnRoute) {
@@ -569,7 +705,7 @@ function highlightDangerPoints(pointsOnRoute) {
 }
 
 function createPointKey(point) {
-    return `${point.lat},${point.lng},${point.level},${point.rowNumber}`;
+    return `${point.placeName},${point.lat},${point.lng},${point.level},${point.rowNumber}`;
 }
 
 function isValidCoordinate(lat, lng) {
@@ -585,4 +721,13 @@ function isValidCoordinate(lat, lng) {
 
 function toRadians(degrees) {
     return degrees * Math.PI / 180;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }

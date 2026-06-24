@@ -40,6 +40,11 @@ h1 {
     line-height: 1.3;
 }
 
+h2 {
+    margin: 0 0 14px;
+    font-size: 16px;
+}
+
 .lead {
     margin: 12px 0 0;
     color: #4b5563;
@@ -47,10 +52,7 @@ h1 {
     font-size: 14px;
 }
 
-.form-card,
-.result-card,
-.sheet-card,
-.legend {
+.card {
     padding: 18px;
     margin-top: 16px;
     border: 1px solid #e5e7eb;
@@ -58,18 +60,10 @@ h1 {
     background: #ffffff;
 }
 
-.form-card h2,
-.sheet-card h2,
-.legend h2 {
-    margin: 0 0 14px;
-    font-size: 16px;
-}
-
-.pin-actions {
+.button-stack {
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px;
-    margin-bottom: 12px;
 }
 
 button {
@@ -103,8 +97,8 @@ button:hover {
     border-color: #111827;
 }
 
-.select-mode-text {
-    margin: 0 0 14px;
+.message {
+    margin: 12px 0 14px;
     padding: 10px 12px;
     border-radius: 10px;
     background: #f3f4f6;
@@ -113,7 +107,7 @@ button:hover {
     line-height: 1.6;
 }
 
-.selected-points {
+.selected-box {
     margin: 0 0 14px;
     padding: 12px;
     border: 1px solid #e5e7eb;
@@ -123,16 +117,20 @@ button:hover {
     color: #374151;
 }
 
-.selected-points p {
+.selected-box.single {
+    margin-top: 12px;
+}
+
+.selected-box p {
     margin: 0;
     line-height: 1.7;
 }
 
-.selected-points p + p {
+.selected-box p + p {
     margin-top: 4px;
 }
 
-.selected-points span {
+.selected-box span {
     color: #111827;
     font-weight: 700;
 }
@@ -144,18 +142,32 @@ label {
     color: #374151;
 }
 
-input {
+input,
+select,
+textarea {
     width: 100%;
     margin-top: 6px;
     padding: 10px 12px;
     border: 1px solid #d1d5db;
     border-radius: 10px;
     font-size: 14px;
+    font-family: inherit;
     outline: none;
+    background: #ffffff;
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
     border-color: #111827;
+}
+
+textarea {
+    resize: vertical;
+}
+
+.hidden {
+    display: none;
 }
 
 .result-card {
@@ -197,17 +209,19 @@ input:focus {
     border-color: #dc2626;
 }
 
-.sheet-card p {
+.sheet-status,
+.submit-status,
+.note {
     margin: 0;
     line-height: 1.7;
     font-size: 14px;
     color: #374151;
 }
 
-.sheet-note {
-    margin-top: 8px !important;
-    color: #6b7280 !important;
-    font-size: 12px !important;
+.note {
+    margin-top: 8px;
+    color: #6b7280;
+    font-size: 12px;
 }
 
 .legend {
