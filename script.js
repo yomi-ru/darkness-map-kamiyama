@@ -93,21 +93,6 @@ function setupEvents() {
     });
 }
 
-function findDangerPointsNearRoute(routePath, dangerPoints, thresholdMeters) {
-    if (!isNightTime) {
-        return [];
-    }
-
-    return dangerPoints
-        .map(point => {
-            return {
-                ...point,
-                distance: getMinimumDistanceToRoute(point, routePath)
-            };
-        })
-        .filter(point => point.distance <= thresholdMeters);
-}
-
 function setSelectMode(mode) {
     selectMode = mode;
     addDangerMode = false;
@@ -284,7 +269,10 @@ async function submitDangerInfo() {
         return;
     }
 
-    if (!APP_CONFIG.submitUrl || APP_CONFIG.submitUrl === "YOUR_APPS_SCRIPT_WEB_APP_URL") {
+    if (
+        !APP_CONFIG.submitUrl ||
+        APP_CONFIG.submitUrl === "YOUR_APPS_SCRIPT_WEB_APP_URL"
+    ) {
         submitStatus.textContent = "Apps ScriptのWebアプリURLが設定されていません。";
         return;
     }
@@ -314,16 +302,17 @@ async function submitDangerInfo() {
         clearDangerForm();
         cancelAddDangerMode();
 
-        setTimeout(() => {
-            loadDangerPointsFromSheet();
+        setTimeout(async () => {
+            await loadDangerPointsFromSheet();
 
             if (hasCalculatedRoute) {
                 calculateRoute();
             }
-        }, 1500);
+        }, 1800);
     } catch (error) {
         console.error(error);
-        submitStatus.textContent = "登録に失敗しました。Apps ScriptのURLや公開設定を確認してください。";
+        submitStatus.textContent =
+            "登録に失敗しました。Apps ScriptのURLや公開設定を確認してください。";
     }
 }
 
@@ -413,7 +402,8 @@ async function loadDangerPointsFromSheet() {
                 );
             });
 
-        const hasChanged = JSON.stringify(nextPoints) !== JSON.stringify(DANGER_POINTS);
+        const hasChanged =
+            JSON.stringify(nextPoints) !== JSON.stringify(DANGER_POINTS);
 
         if (!hasChanged) {
             sheetStatus.textContent = `危険情報 ${DANGER_POINTS.length}件を表示中です。`;
@@ -447,11 +437,19 @@ function startSheetsPolling() {
     }, APP_CONFIG.pollingMs || 5000);
 }
 
+function shouldShowDangerPoints() {
+    if (APP_CONFIG.alwaysShowDangerPointsForTest) {
+        return true;
+    }
+
+    return isNightTime;
+}
+
 function drawDangerPoints() {
     dangerMarkers.forEach(marker => marker.setMap(null));
     dangerMarkers = [];
 
-    if (!isNightTime) {
+    if (!shouldShowDangerPoints()) {
         return;
     }
 
@@ -554,6 +552,7 @@ function calculateRoute() {
             const levels = pointsOnRoute.map(point => point.level);
 
             const maxLevel = levels.length > 0 ? Math.max(...levels) : 0;
+
             const averageLevel = levels.length > 0
                 ? levels.reduce((sum, level) => sum + level, 0) / levels.length
                 : 0;
@@ -603,6 +602,10 @@ function calculateRoute() {
 }
 
 function findDangerPointsNearRoute(routePath, dangerPoints, thresholdMeters) {
+    if (!shouldShowDangerPoints()) {
+        return [];
+    }
+
     return dangerPoints
         .map(point => {
             return {
@@ -684,7 +687,7 @@ function updateResultWithRoute(bestRoute, routeCount) {
         resultCard.classList.add("result-safe");
         maxLevelText.textContent = "安全寄りルート";
         resultDetail.textContent =
-            `${routeCount}件の候補ルートから、危険情報が検出されないルートを選びました。距離は約${distanceKm}kmです。`;
+            `${routeCount}件の候補ルートから、表示対象の危険情報が検出されないルートを選びました。距離は約${distanceKm}kmです。`;
         return;
     }
 
@@ -762,7 +765,6 @@ async function startNightMode() {
         clearInterval(sunPollingTimer);
     }
 
-    // 10分ごとに日の出・日の入り判定を更新
     sunPollingTimer = setInterval(() => {
         updateNightMode();
     }, 10 * 60 * 1000);
@@ -788,7 +790,6 @@ async function updateNightMode() {
     } catch (error) {
         console.error("日の出・日の入り情報を取得できませんでした:", error);
 
-        // API取得に失敗したときは、安全側として表示する
         isNightTime = true;
         updateNightStatus("日の出・日の入り情報を取得できなかったため、危険情報を表示しています。");
         drawDangerPoints();
@@ -838,6 +839,12 @@ function updateNightStatus(customMessage = null) {
 
     if (customMessage) {
         nightStatus.textContent = customMessage;
+        return;
+    }
+
+    if (APP_CONFIG.alwaysShowDangerPointsForTest) {
+        nightStatus.textContent =
+            "テスト表示中です。現在時刻に関係なく危険情報を表示しています。";
         return;
     }
 
