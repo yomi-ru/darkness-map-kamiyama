@@ -17,6 +17,9 @@ let DANGER_POINTS = [];
 let sheetsPollingTimer = null;
 let hasCalculatedRoute = false;
 
+let isNightTime = false;
+let sunPollingTimer = null;
+
 window.initMap = function () {
     const center = {
         lat: 33.9718,
@@ -44,6 +47,7 @@ window.initMap = function () {
     });
 
     setupEvents();
+    startNightMode();
     startSheetsPolling();
 };
 
@@ -87,6 +91,21 @@ function setupEvents() {
 
         setSelectMode(null);
     });
+}
+
+function findDangerPointsNearRoute(routePath, dangerPoints, thresholdMeters) {
+    if (!isNightTime) {
+        return [];
+    }
+
+    return dangerPoints
+        .map(point => {
+            return {
+                ...point,
+                distance: getMinimumDistanceToRoute(point, routePath)
+            };
+        })
+        .filter(point => point.distance <= thresholdMeters);
 }
 
 function setSelectMode(mode) {
@@ -432,6 +451,10 @@ function drawDangerPoints() {
     dangerMarkers.forEach(marker => marker.setMap(null));
     dangerMarkers = [];
 
+    if (!isNightTime) {
+        return;
+    }
+
     DANGER_POINTS.forEach(point => {
         const marker = new google.maps.Marker({
             position: {
@@ -730,4 +753,97 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+async function startNightMode() {
+    await updateNightMode();
+
+    if (sunPollingTimer) {
+        clearInterval(sunPollingTimer);
+    }
+
+    // 10分ごとに日の出・日の入り判定を更新
+    sunPollingTimer = setInterval(() => {
+        updateNightMode();
+    }, 10 * 60 * 1000);
+}
+
+async function updateNightMode() {
+    const center = map.getCenter();
+
+    const lat = center.lat();
+    const lng = center.lng();
+
+    try {
+        const night = await checkIsNightTime(lat, lng);
+
+        isNightTime = night;
+
+        updateNightStatus();
+        drawDangerPoints();
+
+        if (hasCalculatedRoute) {
+            calculateRoute();
+        }
+    } catch (error) {
+        console.error("日の出・日の入り情報を取得できませんでした:", error);
+
+        // API取得に失敗したときは、安全側として表示する
+        isNightTime = true;
+        updateNightStatus("日の出・日の入り情報を取得できなかったため、危険情報を表示しています。");
+        drawDangerPoints();
+    }
+}
+
+async function checkIsNightTime(lat, lng) {
+    const today = new Date();
+    const dateText = formatDate(today);
+
+    const url =
+        `https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lng}&date=${dateText}&formatted=0`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`Sunrise API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status !== "OK") {
+        throw new Error("Sunrise API status is not OK");
+    }
+
+    const sunrise = new Date(data.results.sunrise);
+    const sunset = new Date(data.results.sunset);
+    const now = new Date();
+
+    return now >= sunset || now < sunrise;
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+function updateNightStatus(customMessage = null) {
+    const nightStatus = document.getElementById("nightStatus");
+
+    if (!nightStatus) {
+        return;
+    }
+
+    if (customMessage) {
+        nightStatus.textContent = customMessage;
+        return;
+    }
+
+    if (isNightTime) {
+        nightStatus.textContent = "現在は夜間です。危険情報を表示しています。";
+    } else {
+        nightStatus.textContent = "現在は日中です。危険情報を非表示にしています。";
+    }
 }
